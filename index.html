@@ -1113,23 +1113,28 @@ function deleteTask(){
 function renderCalendar(){
   const y=calDate.getFullYear(),m=calDate.getMonth();
   document.getElementById('calMonthLabel').textContent=`${y}年 ${m+1}月`;
-  const first=new Date(y,m,1).getDay(), last=new Date(y,m+1,0).getDate();
   const today=new Date();
-  let h=['日','月','火','水','木','金','土'].map(d=>`<div class="chdr">${d}</div>`).join('');
+  const last=new Date(y,m+1,0).getDate();
+  // 月曜始まり: 0=月,1=火,...,6=日
+  const firstDow=new Date(y,m,1).getDay(); // 0=日,1=月,...,6=土
+  const firstOffset=(firstDow===0)?6:firstDow-1; // 月曜起点のオフセット
+  let h=['月','火','水','木','金','土','日'].map(d=>`<div class="chdr">${d}</div>`).join('');
   const pl=new Date(y,m,0).getDate();
-  for(let i=first-1;i>=0;i--) h+=`<div class="ccell other-mo"><div class="cdn">${pl-i}</div></div>`;
+  for(let i=firstOffset-1;i>=0;i--) h+=`<div class="ccell other-mo"><div class="cdn">${pl-i}</div></div>`;
   for(let d=1;d<=last;d++){
     const isTd=today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d;
     const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dt=tasks.filter(t=>t.deadline===ds);
     const dots=dt.slice(0,3).map(t=>{ const c=getMemberColor(t.member); const ph=phases.find(p=>p.id===t.phase); const bc=ph?ph.color:c; return `<div class="cdot" style="background:${bc}18;color:${bc}" onclick="openTaskModal('${t.id}')" title="${t.name}">${t.name}</div>`; }).join('');
-    const isWknd2=new Date(y,m,d).getDay()===0||new Date(y,m,d).getDay()===6;
+    const dow=new Date(y,m,d).getDay();
+    const isWknd2=dow===0||dow===6;
     const hname=JP_HOLIDAYS[ds]||'';
     h+=`<div class="ccell ${isTd?'today':''} ${isWknd2&&!isTd?'weekend-cell':''} ${hname&&!isTd?'holiday-cell':''}">
       <div class="cdn">${d}${hname?`<span class="hday-name">${hname}</span>`:''}</div>
       ${dots}${dt.length>3?`<div style="font-size:7px;color:var(--muted)">+${dt.length-3}件</div>`:''}</div>`;
   }
-  const rem=(7-(first+last)%7)%7;
+  const totalCells=firstOffset+last;
+  const rem=(7-totalCells%7)%7;
   for(let i=1;i<=rem;i++) h+=`<div class="ccell other-mo"><div class="cdn">${i}</div></div>`;
   document.getElementById('calGrid').innerHTML=h;
 }
