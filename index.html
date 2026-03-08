@@ -1193,7 +1193,7 @@ function changeMonth(d){ calDate.setMonth(calDate.getMonth()+d); renderCalendar(
 // ══ GANTT ══
 function setSchedMode(m){ schedMode=m; document.getElementById('schedDay').classList.toggle('active',m==='day'); document.getElementById('schedWeek').classList.toggle('active',m==='week'); renderGantt(); }
 function toggleProgress(){ showProg=!showProg; const b=document.getElementById('progBtn'); b.textContent='進捗 '+(showProg?'ON':'OFF'); b.classList.toggle('btn-ga',showProg); renderGantt(); }
-function focusToday(){ const body=document.getElementById('gBodyScroll'), line=document.getElementById('gTodayLine'); if(!line) return; body.scrollLeft=Math.max(0,parseInt(line.style.left)-body.clientWidth/2); document.getElementById('gHeadScroll').scrollLeft=body.scrollLeft; }
+function focusToday(){ const body=document.getElementById('gBodyScroll'), line=document.getElementById('gTodayLine'); if(!line) return; body.scrollLeft=Math.max(0,parseInt(line.style.left)-Math.floor(body.clientWidth/3)); document.getElementById('gHeadScroll').scrollLeft=body.scrollLeft; }
 function dateOnly(d){ const r=new Date(d); r.setHours(0,0,0,0); return r; }
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function diffDays(a,b){ return Math.round((dateOnly(b)-dateOnly(a))/86400000); }
@@ -1335,7 +1335,7 @@ function renderGantt(){
   requestAnimationFrame(()=>{
     const body=document.getElementById('gBodyScroll');
     const line=document.getElementById('gTodayLine');
-    if(line){ body.scrollLeft=Math.max(0,parseInt(line.style.left)-body.clientWidth/2); document.getElementById('gHeadScroll').scrollLeft=body.scrollLeft; }
+    if(line){ body.scrollLeft=Math.max(0,parseInt(line.style.left)-Math.floor(body.clientWidth/3)); document.getElementById('gHeadScroll').scrollLeft=body.scrollLeft; }
   });
 }
 
