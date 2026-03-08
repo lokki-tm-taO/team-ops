@@ -58,6 +58,64 @@ function startFirebaseSync() {
     snap.forEach(d => window._fbPhases.push(d.data()));
     if(window._fbApply) window._fbApply('phases', window._fbPhases);
   });
+
+  // プレゼンス：自分がオンラインであることを登録
+  startPresence();
+}
+
+function startPresence() {
+  // セッションIDを生成（リロードのたびに新しいID）
+  const sessionId = Math.random().toString(36).slice(2, 8);
+  window._presenceId = sessionId;
+
+  // メンバー名を取得（localStorageに保存されていれば使う）
+  const myName = localStorage.getItem('top_myName') || '';
+
+  const presenceRef = doc(db, 'presence', sessionId);
+
+  async function heartbeat() {
+    try {
+      await setDoc(presenceRef, {
+        id: sessionId,
+        name: myName,
+        ts: Date.now()
+      });
+    } catch(e) {}
+  }
+
+  heartbeat();
+  window._presenceInterval = setInterval(heartbeat, 15000);
+
+  // ページ離脱時に削除
+  window.addEventListener('beforeunload', () => {
+    clearInterval(window._presenceInterval);
+    navigator.sendBeacon && deleteDoc(presenceRef).catch(()=>{});
+  });
+
+  // オンラインユーザーをリアルタイム表示
+  onSnapshot(collection(db, 'presence'), snap => {
+    const now = Date.now();
+    const online = [];
+    snap.forEach(d => {
+      const p = d.data();
+      if (now - p.ts < 40000) online.push(p); // 40秒以内 = オンライン
+    });
+    renderOnlineUsers(online);
+  });
+}
+
+function renderOnlineUsers(users) {
+  const wrap = document.getElementById('onlineUsers');
+  if (!wrap) return;
+  wrap.innerHTML = users.map(u => {
+    const name = u.name || '?';
+    const color = getMemberColor(name);
+    const isMe = u.id === window._presenceId;
+    return `<div title="${name}${isMe?' (あなた)':''}" style="width:22px;height:22px;border-radius:50%;background:${color}22;border:2px solid ${color};color:${color};font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:bold;${isMe?'box-shadow:0 0 0 2px var(--bg)':''}">${name[0]||'?'}</div>`;
+  }).join('');
+  if(users.length > 1) {
+    wrap.title = users.map(u=>u.name||'不明').join('、') + ' がオンライン';
+  }
 }
 
 window._fbSave = async function(colName, id, data) {
@@ -403,7 +461,9 @@ select option{background:var(--surface2);}
     <div>タスク: <span id="totalTasks">0</span></div>
     <div>完了: <span id="doneTasks">0</span></div>
     <div>期限超過: <span id="overdueTasks" style="color:var(--danger)">0</span></div>
-    <div id="fbStatus" style="font-size:9px;color:var(--muted);display:none"></div>
+    <div id="fbStatus" style="font-size:9px;color:var(--muted)"></div>
+    <div id="onlineUsers" style="display:flex;gap:4px;align-items:center" title="オンラインメンバー"></div>
+    <button class="btn btn-g" onclick="setMyName()" id="myNameBtn" style="font-size:10px;padding:3px 8px" title="自分の名前を設定">👤 名前設定</button>
     <button class="btn btn-g" id="themeBtn" onclick="toggleTheme()" style="font-size:13px;padding:4px 10px" title="テーマ切り替え">🌙</button>
   </div>
 </header>
@@ -801,7 +861,22 @@ function lsave() {
 
 // Firebase cross-scope bridge
 window._fbApply = function(col, data) {
-  if (col==='tasks')   { tasks=data; loadAllImagesFromIDB().then(()=>renderAll()); }
+  if (col==='tasks') {
+    // 画像データはメモリ上のものを引き継ぐ
+    const imgMap = {};
+    tasks.forEach(t => { if(t.images && t.images.length) imgMap[t.id] = t.images; });
+    tasks = data.map(t => ({ ...t, images: imgMap[t.id] || t.images || [] }));
+    loadAllImagesFromIDB().then(()=>renderAll());
+    // モーダルが開いていたら編集中タスクの情報は触らない（入力中を保護）
+    const modal = document.getElementById('taskModal');
+    if (modal && modal.classList.contains('open')) {
+      // 他の人が同じタスクを編集した場合は通知のみ
+      const updated = data.find(t => t.id === editTaskId);
+      if (updated && editTaskId) {
+        showToast('⚠️ このタスクが他のメンバーに更新されました', 4000);
+      }
+    }
+  }
   if (col==='members') { members=data.map(d=>typeof d==='string'?{name:d,color:'#c8ff00'}:d); renderMembers(); }
   if (col==='phases')  { phases=data; renderPhases(); }
 };
@@ -1590,7 +1665,7 @@ document.getElementById('taskParent').addEventListener('change',function(){ show
 document.querySelectorAll('.moverlay').forEach(el=>{ el.addEventListener('click',e=>{ if(e.target===el){el.classList.remove('open');editTaskId=null;editPhaseId=null;pendingParentId=null;} }); });
 
 // ══ TOAST ══
-function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
+function showToast(msg, duration=2200){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(window._toastT); window._toastT=setTimeout(()=>t.classList.remove('show'), duration); }
 
 // ══ HOLIDAYS ══
 const JP_HOLIDAYS = {
@@ -2487,11 +2562,31 @@ document.querySelectorAll('.nb').forEach(btn=>{
   btn.addEventListener('click', ()=>{ if(window.innerWidth<=768) closeSidebar(); });
 });
 
+function setMyName() {
+  const cur = localStorage.getItem('top_myName') || '';
+  const name = prompt('あなたの名前を入力してください（メンバー一覧と同じ名前を使うとアバター色が連動します）', cur);
+  if (name === null) return;
+  const trimmed = name.trim();
+  localStorage.setItem('top_myName', trimmed);
+  const btn = document.getElementById('myNameBtn');
+  if(btn) btn.textContent = trimmed ? '👤 ' + trimmed : '👤 名前設定';
+  // プレゼンスを更新
+  if(window._presenceId && window._fbSave) {
+    window._fbSave('presence', window._presenceId, {
+      id: window._presenceId,
+      name: trimmed,
+      ts: Date.now()
+    });
+  }
+}
+
 // ══ INIT ══
 initTheme();
 renderMembers(); renderPhases();
 loadAllImagesFromIDB().then(()=>{ renderBoard(); });
 setupImgDrop();
+// 名前ボタン初期化
+(()=>{ const n=localStorage.getItem('top_myName'); const btn=document.getElementById('myNameBtn'); if(btn&&n) btn.textContent='👤 '+n; })();
 </script>
 </body>
 </html>
