@@ -608,7 +608,7 @@ select option{background:var(--surface2);}
       <div class="img-drop-zone" id="imgDropZone" onclick="document.getElementById('imgFileInput').click()">
         📎 ドラッグ&ドロップ / クリック / ⌘V でペースト（PNG・JPG・GIF）
       </div>
-      <div id="imgPasteTarget" contenteditable="true" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;pointer-events:none" tabindex="-1"></div>
+      <div id="imgPasteTarget" contenteditable="true" style="position:fixed;left:-9999px;top:0;width:200px;height:50px;overflow:hidden;opacity:0.001;pointer-events:none" tabindex="0"></div>
       <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none" onchange="handleImgFiles(this.files)">
       <div class="note-img-wrap" id="imgPreviewWrap"></div>
     </div>
@@ -940,33 +940,38 @@ function handleImgFiles(files){
 }
 function setupImgDrop(){
   const zone=document.getElementById('imgDropZone'); if(!zone) return;
-  zone.ondragover=e=>{e.preventDefault();zone.classList.add('drag-over');};
-  zone.ondragleave=()=>zone.classList.remove('drag-over');
-  zone.ondrop=e=>{e.preventDefault();zone.classList.remove('drag-over');handleImgFiles(e.dataTransfer.files);};
 
-  // ⌘V / Ctrl+V Safari対応ペースト
-  // 方法1: document paste イベント（Chrome/Firefox）
+  // ドラッグ&ドロップ（Safari対応強化）
+  zone.ondragenter=e=>{e.preventDefault();e.stopPropagation();zone.classList.add('drag-over');};
+  zone.ondragover=e=>{e.preventDefault();e.stopPropagation();zone.classList.add('drag-over');};
+  zone.ondragleave=e=>{e.stopPropagation();zone.classList.remove('drag-over');};
+  zone.ondrop=e=>{
+    e.preventDefault();e.stopPropagation();
+    zone.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if(files && files.length) handleImgFiles(files);
+  };
+
+  // ペーストハンドラ（document全体）
   const pasteHandler = e=>{
     const modal = document.getElementById('taskModal');
     if(!modal||!modal.classList.contains('open')) return;
-    const cd = e.clipboardData||e.originalEvent&&e.originalEvent.clipboardData;
+    const cd = e.clipboardData;
     if(!cd) return;
     let found=false;
-    // items API
-    if(cd.items){
+    if(cd.items && cd.items.length){
       Array.from(cd.items).forEach(item=>{
-        if(item.type.startsWith('image/')){
+        if(item.kind==='file' && item.type.startsWith('image/')){
           found=true;
-          handleImgFiles([item.getAsFile()]);
+          const f=item.getAsFile();
+          if(f) handleImgFiles([f]);
         }
       });
     }
-    // files API (Safari fallback)
     if(!found && cd.files && cd.files.length){
       Array.from(cd.files).forEach(f=>{
-        if(f.type.startsWith('image/')) handleImgFiles([f]);
+        if(f.type.startsWith('image/')){ found=true; handleImgFiles([f]); }
       });
-      found=true;
     }
     if(found){
       e.preventDefault();
@@ -974,44 +979,55 @@ function setupImgDrop(){
       setTimeout(()=>zone.classList.remove('drag-over'),400);
     }
   };
-  document.removeEventListener('paste', window._pasteHandler||null);
+  if(window._pasteHandler) document.removeEventListener('paste', window._pasteHandler);
   window._pasteHandler = pasteHandler;
   document.addEventListener('paste', pasteHandler);
 
-  // 方法2: contenteditable経由（Safari最終手段）
+  // contenteditable経由（Safari ⌘V 最終手段）
   const pasteTarget = document.getElementById('imgPasteTarget');
   if(pasteTarget){
-    pasteTarget.onpaste = e=>{
+    pasteTarget.addEventListener('paste', e=>{
       const modal = document.getElementById('taskModal');
       if(!modal||!modal.classList.contains('open')) return;
+      // items API
+      const cd = e.clipboardData;
+      let found=false;
+      if(cd && cd.items){
+        Array.from(cd.items).forEach(item=>{
+          if(item.kind==='file' && item.type.startsWith('image/')){
+            found=true;
+            const f=item.getAsFile();
+            if(f) handleImgFiles([f]);
+          }
+        });
+      }
+      if(found){ e.preventDefault(); zone.classList.add('drag-over'); setTimeout(()=>zone.classList.remove('drag-over'),400); return; }
+      // DOMに画像が貼られた場合（Safari）
       setTimeout(()=>{
         const imgs = pasteTarget.querySelectorAll('img');
         if(imgs.length){
           imgs.forEach(img=>{
-            fetch(img.src).then(r=>r.blob()).then(blob=>{
-              handleImgFiles([blob]);
-            });
+            fetch(img.src).then(r=>r.blob()).then(blob=>{ handleImgFiles([blob]); }).catch(()=>{});
           });
           pasteTarget.innerHTML='';
           zone.classList.add('drag-over');
           setTimeout(()=>zone.classList.remove('drag-over'),400);
+        } else {
+          pasteTarget.innerHTML='';
         }
-      }, 50);
-    };
+      }, 100);
+    });
   }
-
-  // ゾーンクリックでpasteTargetにフォーカス（Safari用）
-  zone.addEventListener('keydown', e=>{
-    if((e.metaKey||e.ctrlKey)&&e.key==='v' && pasteTarget){
-      pasteTarget.focus();
-    }
-  });
 }
 
-// モーダルを開いたらpasteTargetを短時間フォーカス（Safari対策）
+// モーダルを開いたらpasteTargetにフォーカス（Safari ⌘V 対策）
 function focusPasteTarget(){
   const pt = document.getElementById('imgPasteTarget');
-  if(pt){ pt.focus(); setTimeout(()=>pt.blur(), 100); }
+  if(pt){
+    pt.focus();
+    // フォーカスをすぐに戻してモーダル操作を邪魔しない
+    setTimeout(()=>{ if(document.activeElement===pt) pt.blur(); }, 200);
+  }
 }
 function linkify(text){
   if(!text) return '';
@@ -1205,6 +1221,10 @@ function openTaskModal(id, parentId, e) {
     return `<option value="${t.id}">${indent}${t.name}</option>`;
   }).join('');
 
+  // 画像リセット
+  window._editingImages = [];
+  renderImgPreviews([]);
+
   if (id) {
     const t = tasks.find(t=>t.id===id);
     document.getElementById('taskName').value = t.name;
@@ -1214,9 +1234,15 @@ function openTaskModal(id, parentId, e) {
     document.getElementById('taskDeadline').value = t.deadline||'';
     document.getElementById('taskStart').value = t.start||'';
     document.getElementById('taskStatus').value = t.status;
+    document.getElementById('taskNote').value = t.note||'';
     parentSel.value = t.parentId||'';
     setProgUI(t.progress||0);
     showParentInfo(t.parentId);
+    // 既存画像を読み込む
+    if (t.images && t.images.length) {
+      window._editingImages = [...t.images];
+      renderImgPreviews(window._editingImages);
+    }
   } else {
     document.getElementById('taskName').value='';
     document.getElementById('taskMember').value='';
@@ -1225,6 +1251,7 @@ function openTaskModal(id, parentId, e) {
     document.getElementById('taskDeadline').value='';
     document.getElementById('taskStart').value='';
     document.getElementById('taskStatus').value='todo';
+    document.getElementById('taskNote').value='';
     parentSel.value = parentId||'';
     setProgUI(0);
     showParentInfo(parentId);
@@ -2397,6 +2424,7 @@ document.querySelectorAll('.nb').forEach(btn=>{
 // ══ INIT ══
 initTheme();
 renderMembers(); renderPhases(); renderBoard();
+setupImgDrop();
 </script>
 </body>
 </html>
