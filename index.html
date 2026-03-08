@@ -736,8 +736,53 @@ function migrateMembersIfNeeded() {
 }
 const DAY_PX = 28, WEEK_PX = 52;
 
+
+// ══ IndexedDB for images ══
+let _idb = null;
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    if (_idb) { resolve(_idb); return; }
+    const req = indexedDB.open('teamops_images', 1);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore('images');
+    };
+    req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbSaveImages(taskId, imgs) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('images', 'readwrite');
+    const store = tx.objectStore('images');
+    store.put(imgs, taskId);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGetImages(taskId) {
+  const db = await openIDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('images', 'readonly');
+    const req = tx.objectStore('images').get(taskId);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => resolve([]);
+  });
+}
+async function idbDeleteImages(taskId) {
+  const db = await openIDB();
+  return new Promise((resolve) => {
+    const tx = db.transaction('images', 'readwrite');
+    tx.objectStore('images').delete(taskId);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+  });
+}
+
 function lsave() {
-  localStorage.setItem('top_tasks',   JSON.stringify(tasks));
+  // imagesはIndexedDBに保存するので、localStorageには含めない
+  const tasksNoImg = tasks.map(t => { const {images, ...rest} = t; return rest; });
+  localStorage.setItem('top_tasks',   JSON.stringify(tasksNoImg));
   localStorage.setItem('top_members', JSON.stringify(members));
   localStorage.setItem('top_phases',  JSON.stringify(phases));
   localStorage.setItem('top_collapsed', JSON.stringify([...collapsed]));
@@ -752,10 +797,19 @@ window._fbApply = function(col, data) {
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
 async function saveTask_sync(t) {
+  // 画像はIndexedDBに保存
+  if (t.images && t.images.length) {
+    await idbSaveImages(t.id, t.images);
+  } else {
+    await idbDeleteImages(t.id);
+  }
   lsave();
-  if (window._fbSave) await window._fbSave('tasks', t.id, t);
+  // Firebaseにはimages除外で保存（容量節約）
+  const {images, ...tNoImg} = t;
+  if (window._fbSave) await window._fbSave('tasks', t.id, tNoImg);
 }
 async function deleteTask_sync(id) {
+  await idbDeleteImages(id);
   lsave();
   if (window._fbDelete) await window._fbDelete('tasks', id);
 }
@@ -1238,11 +1292,11 @@ function openTaskModal(id, parentId, e) {
     parentSel.value = t.parentId||'';
     setProgUI(t.progress||0);
     showParentInfo(t.parentId);
-    // 既存画像を読み込む
-    if (t.images && t.images.length) {
-      window._editingImages = [...t.images];
+    // 既存画像をIndexedDBから読み込む
+    idbGetImages(t.id).then(imgs => {
+      window._editingImages = imgs || [];
       renderImgPreviews(window._editingImages);
-    }
+    });
   } else {
     document.getElementById('taskName').value='';
     document.getElementById('taskMember').value='';
