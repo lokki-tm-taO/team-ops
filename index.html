@@ -778,6 +778,13 @@ async function idbDeleteImages(taskId) {
     tx.onerror = resolve;
   });
 }
+// 全タスクの画像をIndexedDBから一括読み込みしてtasks配列にセット
+async function loadAllImagesFromIDB() {
+  await Promise.all(tasks.map(async t => {
+    const imgs = await idbGetImages(t.id);
+    t.images = imgs && imgs.length ? imgs : [];
+  }));
+}
 
 function lsave() {
   // imagesはIndexedDBに保存するので、localStorageには含めない
@@ -790,7 +797,7 @@ function lsave() {
 
 // Firebase cross-scope bridge
 window._fbApply = function(col, data) {
-  if (col==='tasks')   { tasks=data; renderAll(); }
+  if (col==='tasks')   { tasks=data; loadAllImagesFromIDB().then(()=>renderAll()); }
   if (col==='members') { members=data.map(d=>typeof d==='string'?{name:d,color:'#c8ff00'}:d); renderMembers(); }
   if (col==='phases')  { phases=data; renderPhases(); }
 };
@@ -2477,7 +2484,8 @@ document.querySelectorAll('.nb').forEach(btn=>{
 
 // ══ INIT ══
 initTheme();
-renderMembers(); renderPhases(); renderBoard();
+renderMembers(); renderPhases();
+loadAllImagesFromIDB().then(()=>{ renderBoard(); });
 setupImgDrop();
 </script>
 </body>
