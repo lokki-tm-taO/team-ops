@@ -608,6 +608,7 @@ select option{background:var(--surface2);}
       <div class="img-drop-zone" id="imgDropZone" onclick="document.getElementById('imgFileInput').click()">
         📎 ドラッグ&ドロップ / クリック / ⌘V でペースト（PNG・JPG・GIF）
       </div>
+      <div id="imgPasteTarget" contenteditable="true" style="position:absolute;opacity:0;width:1px;height:1px;overflow:hidden;pointer-events:none" tabindex="-1"></div>
       <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none" onchange="handleImgFiles(this.files)">
       <div class="note-img-wrap" id="imgPreviewWrap"></div>
     </div>
@@ -943,26 +944,74 @@ function setupImgDrop(){
   zone.ondragleave=()=>zone.classList.remove('drag-over');
   zone.ondrop=e=>{e.preventDefault();zone.classList.remove('drag-over');handleImgFiles(e.dataTransfer.files);};
 
-  // ⌘V / Ctrl+V でペースト
+  // ⌘V / Ctrl+V Safari対応ペースト
+  // 方法1: document paste イベント（Chrome/Firefox）
   const pasteHandler = e=>{
     const modal = document.getElementById('taskModal');
     if(!modal||!modal.classList.contains('open')) return;
-    const items = (e.clipboardData||e.originalEvent&&e.originalEvent.clipboardData||{}).items;
-    if(!items) return;
-    Array.from(items).forEach(item=>{
-      if(item.type.startsWith('image/')){
-        e.preventDefault();
-        handleImgFiles([item.getAsFile()]);
-        // フラッシュ演出
-        zone.classList.add('drag-over');
-        setTimeout(()=>zone.classList.remove('drag-over'),400);
-      }
-    });
+    const cd = e.clipboardData||e.originalEvent&&e.originalEvent.clipboardData;
+    if(!cd) return;
+    let found=false;
+    // items API
+    if(cd.items){
+      Array.from(cd.items).forEach(item=>{
+        if(item.type.startsWith('image/')){
+          found=true;
+          handleImgFiles([item.getAsFile()]);
+        }
+      });
+    }
+    // files API (Safari fallback)
+    if(!found && cd.files && cd.files.length){
+      Array.from(cd.files).forEach(f=>{
+        if(f.type.startsWith('image/')) handleImgFiles([f]);
+      });
+      found=true;
+    }
+    if(found){
+      e.preventDefault();
+      zone.classList.add('drag-over');
+      setTimeout(()=>zone.classList.remove('drag-over'),400);
+    }
   };
-  // 重複登録防止
   document.removeEventListener('paste', window._pasteHandler||null);
   window._pasteHandler = pasteHandler;
   document.addEventListener('paste', pasteHandler);
+
+  // 方法2: contenteditable経由（Safari最終手段）
+  const pasteTarget = document.getElementById('imgPasteTarget');
+  if(pasteTarget){
+    pasteTarget.onpaste = e=>{
+      const modal = document.getElementById('taskModal');
+      if(!modal||!modal.classList.contains('open')) return;
+      setTimeout(()=>{
+        const imgs = pasteTarget.querySelectorAll('img');
+        if(imgs.length){
+          imgs.forEach(img=>{
+            fetch(img.src).then(r=>r.blob()).then(blob=>{
+              handleImgFiles([blob]);
+            });
+          });
+          pasteTarget.innerHTML='';
+          zone.classList.add('drag-over');
+          setTimeout(()=>zone.classList.remove('drag-over'),400);
+        }
+      }, 50);
+    };
+  }
+
+  // ゾーンクリックでpasteTargetにフォーカス（Safari用）
+  zone.addEventListener('keydown', e=>{
+    if((e.metaKey||e.ctrlKey)&&e.key==='v' && pasteTarget){
+      pasteTarget.focus();
+    }
+  });
+}
+
+// モーダルを開いたらpasteTargetを短時間フォーカス（Safari対策）
+function focusPasteTarget(){
+  const pt = document.getElementById('imgPasteTarget');
+  if(pt){ pt.focus(); setTimeout(()=>pt.blur(), 100); }
 }
 function linkify(text){
   if(!text) return '';
@@ -1183,6 +1232,7 @@ function openTaskModal(id, parentId, e) {
 
   document.getElementById('taskModal').classList.add('open');
   setTimeout(()=>document.getElementById('taskName').focus(),80);
+  setTimeout(()=>focusPasteTarget(),200);
 }
 
 function showParentInfo(parentId) {
