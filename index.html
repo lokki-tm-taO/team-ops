@@ -337,6 +337,18 @@ select option{background:var(--surface2);}
 
 .toast{position:fixed;bottom:16px;right:16px;background:var(--accent);color:#0e0f13;padding:7px 13px;border-radius:6px;font-size:10px;font-weight:700;z-index:300;transform:translateY(50px);opacity:0;transition:.22s;}
 .toast.show{transform:translateY(0);opacity:1;}
+
+/* ── NOTE / MEMO ── */
+.note-area{width:100%;min-height:90px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-size:13px;color:var(--text);font-family:'DM Mono',monospace;resize:vertical;transition:.15s;box-sizing:border-box;}
+.note-area:focus{outline:none;border-color:var(--accent);}
+.note-display{font-size:12px;line-height:1.7;color:var(--text);word-break:break-all;}
+.note-display a{color:var(--accent3);text-decoration:underline;}
+.note-img-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.note-img{max-width:100%;max-height:200px;border-radius:5px;border:1px solid var(--border);cursor:pointer;object-fit:cover;}
+.img-drop-zone{border:2px dashed var(--border);border-radius:7px;padding:14px;text-align:center;font-size:11px;color:var(--muted);cursor:pointer;transition:.2s;margin-top:6px;}
+.img-drop-zone.drag-over{border-color:var(--accent);background:rgba(200,255,0,0.05);color:var(--accent);}
+.note-img-thumb{position:relative;display:inline-block;}
+.note-img-del{position:absolute;top:-5px;right:-5px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
@@ -586,6 +598,18 @@ select option{background:var(--surface2);}
     <div class="fg" id="parentGroup">
       <label>親タスク（任意）</label>
       <select id="taskParent"><option value="">なし（大項目）</option></select>
+    </div>
+    <div class="fg" style="margin-top:4px">
+      <label>メモ・URL</label>
+      <textarea class="note-area" id="taskNote" placeholder="メモを入力… URLは自動でリンクになります"></textarea>
+    </div>
+    <div class="fg">
+      <label>添付画像</label>
+      <div class="img-drop-zone" id="imgDropZone" onclick="document.getElementById('imgFileInput').click()">
+        📎 画像をドラッグ&ドロップ、またはクリックして選択（PNG・JPG・GIF）
+      </div>
+      <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none" onchange="handleImgFiles(this.files)">
+      <div class="note-img-wrap" id="imgPreviewWrap"></div>
     </div>
     <div class="macts">
       <button class="btn btn-d" id="delTaskBtn" style="display:none" onclick="deleteTask()">削除</button>
@@ -892,6 +916,39 @@ function deletePhase(){
 }
 
 // ══ TASK CARD BUILDER ══
+// ── NOTE / IMAGE HELPERS ──
+window._editingImages = [];
+
+function renderImgPreviews(imgs){
+  window._editingImages = imgs ? [...imgs] : [];
+  const wrap = document.getElementById('imgPreviewWrap');
+  if(!wrap) return;
+  wrap.innerHTML = window._editingImages.map((src,i)=>
+    `<div class="note-img-thumb"><img class="note-img" src="${src}" onclick="openImgFull('${src}')"><button class="note-img-del" onclick="removeImg(${i})">✕</button></div>`
+  ).join('');
+}
+function removeImg(i){ window._editingImages.splice(i,1); renderImgPreviews(window._editingImages); }
+function openImgFull(src){ const w=window.open(); w.document.write(`<img src="${src}" style="max-width:100%;height:auto">`); }
+function handleImgFiles(files){
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')) return;
+    const reader=new FileReader();
+    reader.onload=e=>{ window._editingImages.push(e.target.result); renderImgPreviews(window._editingImages); };
+    reader.readAsDataURL(file);
+  });
+}
+function setupImgDrop(){
+  const zone=document.getElementById('imgDropZone'); if(!zone) return;
+  zone.ondragover=e=>{e.preventDefault();zone.classList.add('drag-over');};
+  zone.ondragleave=()=>zone.classList.remove('drag-over');
+  zone.ondrop=e=>{e.preventDefault();zone.classList.remove('drag-over');handleImgFiles(e.dataTransfer.files);};
+}
+function linkify(text){
+  if(!text) return '';
+  const esc=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return esc.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+
 function buildCard(t, level) {
   const mc = getMemberColor(t.member);
   const ph = phases.find(p=>p.id===t.phase);
@@ -932,6 +989,20 @@ function buildCard(t, level) {
   if (prog > 0 || hasChildren) {
     inner += `<div class="pbar"><div class="pfill" style="width:${prog}%;background:${mc}"></div></div>
       <div class="ptext">${hasChildren?`${prog}% (${children.filter(c=>computeStatus(c)==='done').length}/${children.length} 完了)`:`${prog}%`}</div>`;
+  }
+
+  // Note display
+  if (t.note) {
+    inner += `<div class="note-display" style="margin-top:5px;padding:4px 6px;background:var(--bg);border-radius:4px;border-left:2px solid var(--border)">${linkify(t.note)}</div>`;
+  }
+  // Image thumbnails
+  if (t.images && t.images.length) {
+    inner += '<div class="note-img-wrap">';
+    t.images.slice(0,3).forEach(src=>{
+      inner += `<img class="note-img" src="${src}" style="max-height:70px;width:auto" onclick="event.stopPropagation();openImgFull('${src}')">`;
+    });
+    if(t.images.length>3) inner+=`<span style="font-size:10px;color:var(--muted);align-self:center">+${t.images.length-3}枚</span>`;
+    inner += '</div>';
   }
 
   // Add sub-task button (only if level < 3)
@@ -1125,7 +1196,9 @@ function saveTask(){
     start:document.getElementById('taskStart').value,
     status:document.getElementById('taskStatus').value,
     progress:parseInt(document.getElementById('taskProg').value)||0,
-    parentId
+    parentId,
+    note: document.getElementById('taskNote').value,
+    images: window._editingImages||[]
   };
   if (editTaskId) {
     const i=tasks.findIndex(t=>t.id===editTaskId); tasks[i]={...tasks[i],...data};
