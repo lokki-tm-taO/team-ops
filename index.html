@@ -807,9 +807,16 @@ function getMemberEmoji(name) {
   const m = members.find(m => m && m.name === name);
   return (m && m.emoji) ? m.emoji : null;
 }
+function mkAvatar(name, color, size) {
+  if (!name) return `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*0.55}px;flex-shrink:0;background:${color}18;color:${color}">?</div>`;
+  const emoji = getMemberEmoji(name);
+  const fs = emoji ? Math.round(size*0.7) : Math.round(size*0.5);
+  const label = emoji || name[0];
+  return `<div class="av" style="width:${size}px;height:${size}px;font-size:${fs}px;flex-shrink:0;background:${color}18;color:${color}" title="${name}">${label}</div>`;
+}
 function migrateMembersIfNeeded() {
   if (members.length && typeof members[0] === 'string') {
-    members = members.map((m, i) => ({ name: m, color: MC[i % MC.length] }));
+    members = members.map((m, i) => ({ name: m, color: MC[i % MC.length], emoji: '' }));
     lsave();
   }
 }
@@ -892,7 +899,7 @@ window._fbApply = function(col, data) {
       }
     }
   }
-  if (col==='members') { members=data.map(d=>typeof d==='string'?{name:d,color:'#c8ff00'}:d); renderMembers(); }
+  if (col==='members') { members=data.map(d=>typeof d==='string'?{name:d,color:'#c8ff00',emoji:'😀'}:{...d,emoji:d.emoji||''}); renderMembers(); }
   if (col==='phases')  { phases=data; renderPhases(); }
 };
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
@@ -979,7 +986,7 @@ function renderMembers(){
   migrateMembersIfNeeded();
   document.getElementById('memberList').innerHTML = members.map((m,i)=>`
     <div class="mchip" onclick="openMemberModal(${i})" title="クリックで編集・削除">
-      <div class="av" style="width:24px;height:24px;font-size:${m.emoji?'16px':'9px'};background:${m.color}25;color:${m.color}">${m.emoji||m.name[0]}</div>
+      <div class="av" style="width:24px;height:24px;font-size:${m.emoji?'16px':'9px'};background:${m.color}25;color:${m.color}">${m.emoji?m.emoji:m.name[0]}</div>
       <span style="flex:1">${m.name}</span>
       <span style="font-size:9px;color:var(--border)">✎</span>
     </div>`).join('');
@@ -1059,7 +1066,10 @@ function saveMember(){
     members.push({name:n, color:selMemberColor, emoji});
     showToast(n+' を追加');
   }
-  lsave(); renderMembers(); closeMemberModal(); renderBoard();
+  lsave();
+  // Firebaseにメンバーを全件保存
+  members.forEach((m, i) => saveMember_sync(m, i));
+  renderMembers(); closeMemberModal(); renderBoard();
   if(document.getElementById('ganttView').classList.contains('active')) renderGantt();
 }
 function deleteMember(){
@@ -1068,7 +1078,11 @@ function deleteMember(){
   if(!confirm(`「${name}」を削除しますか？\n担当タスクは未割り当てになります。`)) return;
   members.splice(editMemberIdx,1);
   tasks.forEach(t=>{ if(t.member===name){ t.member=''; saveTask_sync(t); } });
-  lsave(); renderMembers(); closeMemberModal(); renderBoard(); showToast(name+' を削除しました');
+  lsave();
+  members.forEach((m, i) => saveMember_sync(m, i));
+  // Firebaseから削除されたメンバーのドキュメントを消す
+  if(window._fbDelete) window._fbDelete('members', 'mb_'+(members.length));
+  renderMembers(); closeMemberModal(); renderBoard(); showToast(name+' を削除しました');
 }
 
 // ══ PHASES ══
@@ -1258,7 +1272,7 @@ function buildCard(t, level) {
   inner += `<div class="tmeta">
     <span class="${dl}">${t.deadline?'📅 '+fmtD(t.deadline):'—'}</span>
     <div style="display:flex;gap:4px;align-items:center">
-      ${t.member?`<span class="av" style="width:20px;height:20px;font-size:${getMemberEmoji(t.member)?'13px':'8px'};background:${mc}18;color:${mc}" title="${t.member}">${getMemberEmoji(t.member)||t.member[0]}</span>`:''}
+      ${t.member?mkAvatar(t.member,mc,20):''}
       <span class="pbadge ${t.priority}">${{high:'高',medium:'中',low:'低'}[t.priority]}</span>
     </div>
   </div>`;
@@ -1589,7 +1603,7 @@ function renderGanttRows(taskList, pxPD, minD, maxD, totalW) {
       ${isDragLevel?'<span class="g-drag-h" onclick="event.stopPropagation()">⠿</span>':''}
       ${level>=2?`<div class="g-indent">${'<div class="g-indent-line"></div>'.repeat(level-2)}<div class="g-indent-hook"></div></div>`:''}
       ${hasChildren?`<button class="gtog ${isCollapsedG?'closed':'open'}" onclick="gToggle('${t.id}',event)">▾</button>`:`<span style="width:28px;flex-shrink:0"></span>`}
-      <div class="av" style="width:22px;height:22px;font-size:${getMemberEmoji(t.member)?'15px':'8px'};flex-shrink:0;background:${mc}18;color:${mc}" title="${t.member||''}">${getMemberEmoji(t.member)||(t.member?t.member[0]:'?')}</div>
+      ${mkAvatar(t.member,mc,22)}
       <div class="gtlbl">${t.name}</div>
     </div>`;
 
