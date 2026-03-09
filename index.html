@@ -234,6 +234,7 @@ main{overflow:hidden;display:flex;flex-direction:column;}
 
 /* Phase tag */
 .ph-tag{font-size:8px;margin-bottom:4px;letter-spacing:.5px;}
+.phase-badge{display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:600;letter-spacing:.3px;white-space:nowrap;}
 
 /* ── CALENDAR ── */
 .cwrap{flex:1;overflow:hidden;padding:0 24px 16px;display:flex;flex-direction:column;}
@@ -480,9 +481,9 @@ select option{background:var(--surface2);}
   <div class="nl">メンバー</div>
   <div id="memberList"></div>
   <button class="btn btn-g" style="margin-top:7px;font-size:9px;width:100%" onclick="openMemberModal()">+ メンバー追加</button>
-  <div class="nl">フェーズ</div>
-  <div id="phaseSideList"></div>
-  <button class="btn btn-g" style="margin-top:7px;font-size:9px;width:100%" onclick="openPhaseModal()">+ フェーズ追加</button>
+  <div class="nl" style="display:none">フェーズ</div>
+  <div id="phaseSideList" style="display:none"></div>
+  <button class="btn btn-g" style="display:none;margin-top:7px;font-size:9px;width:100%" onclick="openPhaseModal()">+ フェーズ追加</button>
 </aside>
 
 <main>
@@ -636,10 +637,17 @@ select option{background:var(--surface2);}
     <div class="pinf" id="parentInfo" style="display:none">
       <span id="parentInfoText"></span><span id="levelBadge" class="lvbadge"></span>
     </div>
-    <div class="fg"><label>タスク名</label><input type="text" id="taskName" placeholder="タスクの内容..."></div>
+    <div class="fg">
+      <label>タスク名</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="taskIconBtn" onclick="toggleTaskEmojiPicker(event)" style="font-size:22px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;line-height:1.4;flex-shrink:0" title="アイコンを設定">➕</button>
+        <input type="text" id="taskName" placeholder="タスクの内容..." style="flex:1">
+      </div>
+      <div id="taskEmojiPicker" style="display:none;flex-wrap:wrap;gap:3px;margin-top:6px;padding:6px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);max-height:120px;overflow-y:auto"></div>
+    </div>
     <div class="fr">
       <div class="fg"><label>担当者</label><select id="taskMember"><option value="">未割り当て</option></select></div>
-      <div class="fg"><label>フェーズ</label><select id="taskPhase"><option value="">なし</option></select></div>
+      <div class="fg" style="display:none"><label>フェーズ</label><select id="taskPhase"><option value="">なし</option></select></div>
     </div>
     <div class="fr">
       <div class="fg"><label>優先度</label>
@@ -798,6 +806,7 @@ const PC = ['#e11d48','#be185d','#b45309','#ca8a04','#4d7c0f','#059669','#0891b2
 let selColor = PC[0];
 let selMemberColor = MC[0];
 let selMemberEmoji = '😀';
+let selTaskIcon = '';
 
 function getMemberColor(name) {
   const m = members.find(m => m && m.name === name);
@@ -807,6 +816,40 @@ function getMemberEmoji(name) {
   const m = members.find(m => m && m.name === name);
   return (m && m.emoji) ? m.emoji : null;
 }
+const TASK_EMOJI_LIST = [
+  '📁','📂','📋','📌','📍','🗂️','🗓️','📅','⚡','🔥',
+  '✅','🎯','🚀','💡','🔑','⭐','🌟','💎','🏆','🎖️',
+  '📣','📢','🔔','💬','📝','✏️','📊','📈','📉','🗺️',
+  '🛠️','⚙️','🔧','🔨','💻','📱','🖥️','📷','🎨','🎬',
+  '👥','🤝','💪','🧠','👀','❤️','💰','🌐','🏠','🚗',
+];
+function buildTaskEmojiPicker(){
+  const picker = document.getElementById('taskEmojiPicker');
+  if(!picker) return;
+  picker.innerHTML = TASK_EMOJI_LIST.map(e =>
+    `<button onclick="pickTaskIcon('${e}')" style="font-size:20px;padding:2px 4px;border:2px solid ${e===selTaskIcon?'var(--accent)':'transparent'};border-radius:5px;background:${e===selTaskIcon?'rgba(200,255,0,0.1)':'none'};cursor:pointer;line-height:1">${e}</button>`
+  ).join('') + `<button onclick="pickTaskIcon('')" style="font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer;color:var(--muted)">なし</button>`;
+}
+function pickTaskIcon(e){
+  selTaskIcon = e;
+  const btn = document.getElementById('taskIconBtn');
+  if(btn) btn.textContent = e || '➕';
+  buildTaskEmojiPicker();
+}
+function toggleTaskEmojiPicker(event){
+  event.stopPropagation();
+  const picker = document.getElementById('taskEmojiPicker');
+  if(!picker) return;
+  const isOpen = picker.style.display !== 'none';
+  picker.style.display = isOpen ? 'none' : 'flex';
+  if(!isOpen) buildTaskEmojiPicker();
+}
+// クリックで閉じる
+document.addEventListener('click', ()=>{
+  const p = document.getElementById('taskEmojiPicker');
+  if(p) p.style.display='none';
+});
+
 function mkAvatar(name, color, size) {
   if (!name) return `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*0.55}px;flex-shrink:0;background:${color}18;color:${color}">?</div>`;
   const emoji = getMemberEmoji(name);
@@ -1259,14 +1302,14 @@ function buildCard(t, level) {
   card.draggable = true;
 
   let inner = `<div class="drag-h" title="ドラッグして並び替え">⠿</div>`;
-  if (ph) inner += `<div class="ph-tag" style="color:${ph.color}">▸ ${ph.name}</div>`;
+  if (ph) inner += `<div style="margin-bottom:3px"><span class="phase-badge" style="background:${ph.color}18;color:${ph.color};border:1px solid ${ph.color}40">${ph.name}</span></div>`;
 
   // Card header with toggle
   inner += `<div class="card-h">`;
   if (hasChildren || level < 3) {
     inner += `<button class="tog ${isCollapsed?'closed':'open'}" onclick="toggleCollapse('${t.id}',event)" title="開閉">▾</button>`;
   }
-  inner += `<div class="tname" onclick="openTaskModal('${t.id}')">${t.name}</div></div>`;
+  inner += `<div class="tname" onclick="openTaskModal('${t.id}')">${t.icon?`<span style='margin-right:4px'>${t.icon}</span>`:''}<span>${t.name}</span></div></div>`;
 
   // Meta
   inner += `<div class="tmeta">
@@ -1444,6 +1487,9 @@ function openTaskModal(id, parentId, e) {
     parentSel.value = t.parentId||'';
     setProgUI(t.progress||0);
     showParentInfo(t.parentId);
+    selTaskIcon = t.icon||'';
+    const iconBtn = document.getElementById('taskIconBtn');
+    if(iconBtn) iconBtn.textContent = selTaskIcon||'➕';
     // 既存画像をIndexedDBから読み込む
     idbGetImages(t.id).then(imgs => {
       window._editingImages = imgs || [];
@@ -1461,6 +1507,9 @@ function openTaskModal(id, parentId, e) {
     parentSel.value = parentId||'';
     setProgUI(0);
     showParentInfo(parentId);
+    selTaskIcon = '';
+    const iconBtn = document.getElementById('taskIconBtn');
+    if(iconBtn) iconBtn.textContent = '➕';
   }
 
   document.getElementById('taskModal').classList.add('open');
@@ -1493,7 +1542,8 @@ function saveTask(){
     if (parent && getLevel(parent)>=3){ showToast('3層が最大です'); return; }
   }
   const data = {
-    name, member:document.getElementById('taskMember').value,
+    name, icon: selTaskIcon||'',
+    member:document.getElementById('taskMember').value,
     phase:document.getElementById('taskPhase').value,
     priority:document.getElementById('taskPriority').value,
     deadline:document.getElementById('taskDeadline').value,
@@ -1552,7 +1602,7 @@ function renderCalendar(){
     const isTd=today.getFullYear()===y&&today.getMonth()===m&&today.getDate()===d;
     const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const dt=tasks.filter(t=>t.deadline===ds);
-    const dots=dt.slice(0,3).map(t=>{ const c=getMemberColor(t.member); const ph=phases.find(p=>p.id===t.phase); const bc=ph?ph.color:c; return `<div class="cdot" style="background:${bc}18;color:${bc}" onclick="openTaskModal('${t.id}')" title="${t.name}">${t.name}</div>`; }).join('');
+    const dots=dt.slice(0,3).map(t=>{ const c=getMemberColor(t.member); const ph=phases.find(p=>p.id===t.phase); const bc=ph?ph.color:c; return `<div class="cdot" style="background:${bc}18;color:${bc}" onclick="openTaskModal('${t.id}')" title="${t.name}">${t.icon?`<span style='margin-right:2px'>${t.icon}</span>`:''}<span>${t.name}</span></div>`; }).join('');
     const dow=new Date(y,m,d).getDay();
     const isWknd2=dow===0||dow===6;
     const hname=JP_HOLIDAYS[ds]||'';
@@ -1604,7 +1654,10 @@ function renderGanttRows(taskList, pxPD, minD, maxD, totalW) {
       ${level>=2?`<div class="g-indent">${'<div class="g-indent-line"></div>'.repeat(level-2)}<div class="g-indent-hook"></div></div>`:''}
       ${hasChildren?`<button class="gtog ${isCollapsedG?'closed':'open'}" onclick="gToggle('${t.id}',event)">▾</button>`:`<span style="width:28px;flex-shrink:0"></span>`}
       ${mkAvatar(t.member,mc,22)}
-      <div class="gtlbl">${t.name}</div>
+      <div style="flex:1;overflow:hidden">
+        <div class="gtlbl">${t.icon?`<span style='margin-right:4px'>${t.icon}</span>`:''}<span>${t.name}</span></div>
+        ${ph?`<span class="phase-badge" style="background:${ph.color}18;color:${ph.color};border:1px solid ${ph.color}40;margin-top:1px">${ph.name}</span>`:''}
+      </div>
     </div>`;
 
     // Bar
