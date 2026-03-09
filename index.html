@@ -640,10 +640,12 @@ select option{background:var(--surface2);}
     <div class="fg">
       <label>タスク名</label>
       <div style="display:flex;gap:8px;align-items:center">
-        <button id="taskIconBtn" onclick="toggleTaskEmojiPicker(event)" style="font-size:22px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;line-height:1.4;flex-shrink:0" title="アイコンを設定">➕</button>
+        <div style="position:relative;flex-shrink:0">
+          <div id="taskIconBtn" style="font-size:22px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);cursor:pointer;line-height:1.4;width:44px;text-align:center;user-select:none" title="クリック: 絵文字を設定 / ダブルクリック: クリア" onclick="focusEmojiInput()" ondblclick="clearTaskIcon()">➕</div>
+          <input id="taskIconInput" type="text" style="position:absolute;opacity:0;width:1px;height:1px;top:0;left:0;font-size:16px" oninput="onTaskIconInput(this.value)" placeholder="emoji">
+        </div>
         <input type="text" id="taskName" placeholder="タスクの内容..." style="flex:1">
       </div>
-      <div id="taskEmojiPicker" style="display:none;flex-wrap:wrap;gap:3px;margin-top:6px;padding:6px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);max-height:120px;overflow-y:auto"></div>
     </div>
     <div class="fr">
       <div class="fg"><label>担当者</label><select id="taskMember"><option value="">未割り当て</option></select></div>
@@ -816,39 +818,35 @@ function getMemberEmoji(name) {
   const m = members.find(m => m && m.name === name);
   return (m && m.emoji) ? m.emoji : null;
 }
-const TASK_EMOJI_LIST = [
-  '📁','📂','📋','📌','📍','🗂️','🗓️','📅','⚡','🔥',
-  '✅','🎯','🚀','💡','🔑','⭐','🌟','💎','🏆','🎖️',
-  '📣','📢','🔔','💬','📝','✏️','📊','📈','📉','🗺️',
-  '🛠️','⚙️','🔧','🔨','💻','📱','🖥️','📷','🎨','🎬',
-  '👥','🤝','💪','🧠','👀','❤️','💰','🌐','🏠','🚗',
-];
-function buildTaskEmojiPicker(){
-  const picker = document.getElementById('taskEmojiPicker');
-  if(!picker) return;
-  picker.innerHTML = TASK_EMOJI_LIST.map(e =>
-    `<button onclick="pickTaskIcon('${e}')" style="font-size:20px;padding:2px 4px;border:2px solid ${e===selTaskIcon?'var(--accent)':'transparent'};border-radius:5px;background:${e===selTaskIcon?'rgba(200,255,0,0.1)':'none'};cursor:pointer;line-height:1">${e}</button>`
-  ).join('') + `<button onclick="pickTaskIcon('')" style="font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer;color:var(--muted)">なし</button>`;
+function focusEmojiInput(){
+  const inp = document.getElementById('taskIconInput');
+  if(!inp) return;
+  inp.value = '';
+  inp.style.opacity = '0.01';
+  inp.style.width = '40px';
+  inp.style.height = '40px';
+  inp.style.position = 'absolute';
+  inp.focus();
+  // 少し待ってから絵文字キーボードを促す
+  setTimeout(()=>{ inp.click(); }, 50);
 }
-function pickTaskIcon(e){
-  selTaskIcon = e;
+function onTaskIconInput(val){
+  // 絵文字（Unicode拡張文字）を抽出
+  const chars = [...val];
+  const emoji = chars.find(c => c.codePointAt(0) > 127);
+  if(emoji){
+    selTaskIcon = emoji;
+    const btn = document.getElementById('taskIconBtn');
+    if(btn) btn.textContent = emoji;
+    const inp = document.getElementById('taskIconInput');
+    if(inp){ inp.value=''; inp.blur(); }
+  }
+}
+function clearTaskIcon(){
+  selTaskIcon = '';
   const btn = document.getElementById('taskIconBtn');
-  if(btn) btn.textContent = e || '➕';
-  buildTaskEmojiPicker();
+  if(btn) btn.textContent = '➕';
 }
-function toggleTaskEmojiPicker(event){
-  event.stopPropagation();
-  const picker = document.getElementById('taskEmojiPicker');
-  if(!picker) return;
-  const isOpen = picker.style.display !== 'none';
-  picker.style.display = isOpen ? 'none' : 'flex';
-  if(!isOpen) buildTaskEmojiPicker();
-}
-// クリックで閉じる
-document.addEventListener('click', ()=>{
-  const p = document.getElementById('taskEmojiPicker');
-  if(p) p.style.display='none';
-});
 
 function mkAvatar(name, color, size) {
   if (!name) return `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*0.55}px;flex-shrink:0;background:${color}18;color:${color}">?</div>`;
@@ -1302,7 +1300,7 @@ function buildCard(t, level) {
   card.draggable = true;
 
   let inner = `<div class="drag-h" title="ドラッグして並び替え">⠿</div>`;
-  if (ph) inner += `<div style="margin-bottom:3px"><span class="phase-badge" style="background:${ph.color}18;color:${ph.color};border:1px solid ${ph.color}40">${ph.name}</span></div>`;
+  // フェーズ表示なし
 
   // Card header with toggle
   inner += `<div class="card-h">`;
@@ -1490,6 +1488,8 @@ function openTaskModal(id, parentId, e) {
     selTaskIcon = t.icon||'';
     const iconBtn = document.getElementById('taskIconBtn');
     if(iconBtn) iconBtn.textContent = selTaskIcon||'➕';
+    const iconInp = document.getElementById('taskIconInput');
+    if(iconInp) iconInp.value='';
     // 既存画像をIndexedDBから読み込む
     idbGetImages(t.id).then(imgs => {
       window._editingImages = imgs || [];
@@ -1510,6 +1510,8 @@ function openTaskModal(id, parentId, e) {
     selTaskIcon = '';
     const iconBtn = document.getElementById('taskIconBtn');
     if(iconBtn) iconBtn.textContent = '➕';
+    const iconInp = document.getElementById('taskIconInput');
+    if(iconInp) iconInp.value='';
   }
 
   document.getElementById('taskModal').classList.add('open');
@@ -1634,7 +1636,7 @@ function renderGanttRows(taskList, pxPD, minD, maxD, totalW) {
     const lvCls = `lv${level}r`;
     const mc = getMemberColor(t.member);
     const ph = phases.find(p=>p.id===t.phase);
-    const barColor = ph?ph.color:mc;
+    const barColor = mc;
     const prog = computeProgress(t);
     const isCollapsedG = collapsed.has(t.id);
     const children = getChildren(t.id);
@@ -1656,7 +1658,7 @@ function renderGanttRows(taskList, pxPD, minD, maxD, totalW) {
       ${mkAvatar(t.member,mc,22)}
       <div style="flex:1;overflow:hidden">
         <div class="gtlbl">${t.icon?`<span style='margin-right:4px'>${t.icon}</span>`:''}<span>${t.name}</span></div>
-        ${ph?`<span class="phase-badge" style="background:${ph.color}18;color:${ph.color};border:1px solid ${ph.color}40;margin-top:1px">${ph.name}</span>`:''}
+
       </div>
     </div>`;
 
