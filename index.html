@@ -644,7 +644,7 @@ select option{background:var(--surface2);}
     <div class="fg">
       <label>アイコン（任意）</label>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div id="taskIconPreview" style="width:40px;height:40px;font-size:26px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--surface2);border:2px solid var(--border)">➕</div>
+        <div id="taskIconPreview" style="width:40px;height:40px;font-size:26px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--surface2);border:2px solid var(--border)">−</div>
         <span style="font-size:11px;color:var(--muted)">下から選ぶか、直接入力</span>
         <input type="text" id="taskIconInput" placeholder="😀" style="width:60px;font-size:20px;text-align:center;padding:4px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text)" oninput="onTaskIconInput(this.value)">
         <button onclick="clearTaskIcon()" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:none;color:var(--muted);cursor:pointer">クリア</button>
@@ -862,7 +862,7 @@ function onTaskIconInput(val){
 function clearTaskIcon(){
   selTaskIcon = '';
   const preview = document.getElementById('taskIconPreview');
-  if(preview) preview.textContent = '➕';
+  if(preview) preview.textContent = '−';
   const inp = document.getElementById('taskIconInput');
   if(inp) inp.value = '';
   buildTaskEmojiPicker();
@@ -1500,7 +1500,7 @@ function openTaskModal(id, parentId, e) {
     showParentInfo(t.parentId);
     selTaskIcon = t.icon||'';
     const iconPreview = document.getElementById('taskIconPreview');
-    if(iconPreview) iconPreview.textContent = selTaskIcon||'➕';
+    if(iconPreview) iconPreview.textContent = selTaskIcon||'−';
     const iconInp = document.getElementById('taskIconInput');
     if(iconInp) iconInp.value = selTaskIcon||'';
     buildTaskEmojiPicker();
@@ -1523,7 +1523,7 @@ function openTaskModal(id, parentId, e) {
     showParentInfo(parentId);
     selTaskIcon = '';
     const iconPreview = document.getElementById('taskIconPreview');
-    if(iconPreview) iconPreview.textContent = '➕';
+    if(iconPreview) iconPreview.textContent = '−';
     const iconInp = document.getElementById('taskIconInput');
     if(iconInp) iconInp.value='';
     buildTaskEmojiPicker();
