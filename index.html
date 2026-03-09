@@ -539,7 +539,7 @@ select option{background:var(--surface2);}
       </div>
       <button class="btn btn-g btn-ga" id="progBtn" onclick="toggleProgress()">進捗 ON</button>
       <button class="btn btn-g" onclick="focusToday()">▶ 今日</button>
-      <div class="phleg" id="phaseLegend"></div>
+      <div class="phleg" id="phaseLegend" style="display:none"></div>
       <div class="grtools">
         <button class="btn btn-p" onclick="openTaskModal()">+ タスク追加</button>
       </div>
@@ -822,6 +822,18 @@ function getMemberEmoji(name) {
   const m = members.find(m => m && m.name === name);
   return (m && m.emoji) ? m.emoji : null;
 }
+const TASK_EMOJI_LIST = [
+  '📁','📂','📋','📌','📍','🗂️','🗓️','📅','📆','🗒️','📄','📃','📑','🗃️','🗄️',
+  '✅','❌','⚡','🔥','💫','✨','⭐','🌟','🔴','🟡','🟢','🔵','🟠','🟣','⚪',
+  '🎯','🚀','💡','🔑','💎','🏆','🎖️','🥇','📣','📢','🔔','💬','📝','✏️','🖊️',
+  '📊','📈','📉','🗺️','🔍','🔎','💼','📦','🏷️','🎁','💰','💳','🧾','🪙','💹',
+  '🛠️','⚙️','🔧','🔨','🪛','🔩','🧰','💻','📱','🖥️','🖨️','📷','📸','🎥','🎬',
+  '👥','🤝','💪','🧠','👀','👋','🙌','✍️','🧑‍💻','👩‍💼','👨‍💼','🧑‍🎨','👩‍🔧','👨‍🔧','🤜',
+  '🌸','🌺','🌻','🌈','☀️','🌙','🍎','🍊','🍋','🍇','🍓','🌿','🌱','🍀','🌴',
+  '🐶','🐱','🐻','🐼','🦊','🐯','🦁','🐸','🐧','🦄','🐝','🦋','🐬','🦅','🐙',
+  '🚗','✈️','🏠','🏢','🏪','🗼','🌐','🏔️','🎮','🎨','🎵','🎸','📚','🎲','🎳',
+];
+
 function buildTaskEmojiPicker(){
   const picker = document.getElementById('taskEmojiPicker');
   if(!picker) return;
@@ -1136,15 +1148,7 @@ function deleteMember(){
 }
 
 // ══ PHASES ══
-function renderPhases(){
-  const sel=document.getElementById('taskPhase'), cur=sel.value;
-  sel.innerHTML='<option value="">なし</option>'+phases.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
-  sel.value=cur;
-  document.getElementById('phaseSideList').innerHTML=phases.map(p=>`
-    <div class="mchip" onclick="openPhaseModal('${p.id}')"><div style="width:8px;height:8px;border-radius:50%;background:${p.color};flex-shrink:0"></div>${p.name}</div>`).join('');
-  document.getElementById('phaseLegend').innerHTML=phases.map(p=>`
-    <div class="pchip ${hiddenPh.has(p.id)?'hp':''}" onclick="togglePh('${p.id}')"><div class="pdot" style="background:${p.color}"></div>${p.name}</div>`).join('');
-}
+function renderPhases(){ /* フェーズ非表示 */ }
 function togglePh(id){ hiddenPh.has(id)?hiddenPh.delete(id):hiddenPh.add(id); renderPhases(); renderGantt(); }
 function openPhaseModal(id){
   editPhaseId=id||null;
@@ -1642,7 +1646,7 @@ function getWeek(d){ const t=new Date(d); t.setHours(0,0,0,0); t.setDate(t.getDa
 function renderGanttRows(taskList, pxPD, minD, maxD, totalW) {
   let lH='', rH='';
   taskList.forEach(t => {
-    if (hiddenPh.has(t.phase)) return;
+    // フェーズフィルター無効
     const level = getLevel(t);
     const lvCls = `lv${level}r`;
     const mc = getMemberColor(t.member);
