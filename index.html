@@ -818,35 +818,40 @@ function getMemberEmoji(name) {
   const m = members.find(m => m && m.name === name);
   return (m && m.emoji) ? m.emoji : null;
 }
-function focusEmojiInput(){
+function buildTaskEmojiPicker(){
+  const picker = document.getElementById('taskEmojiPicker');
+  if(!picker) return;
+  picker.innerHTML = TASK_EMOJI_LIST.map(e =>
+    `<button onclick="pickTaskIcon('${e}')" title="${e}" style="font-size:22px;padding:3px 5px;border:2px solid ${e===selTaskIcon?'var(--accent)':'transparent'};border-radius:6px;background:${e===selTaskIcon?'rgba(200,255,0,0.1)':'none'};cursor:pointer;line-height:1;transition:.1s">${e}</button>`
+  ).join('');
+}
+function pickTaskIcon(e){
+  selTaskIcon = e;
+  const preview = document.getElementById('taskIconPreview');
+  if(preview) preview.textContent = e;
   const inp = document.getElementById('taskIconInput');
-  if(!inp) return;
-  inp.value = '';
-  inp.style.opacity = '0.01';
-  inp.style.width = '40px';
-  inp.style.height = '40px';
-  inp.style.position = 'absolute';
-  inp.focus();
-  // 少し待ってから絵文字キーボードを促す
-  setTimeout(()=>{ inp.click(); }, 50);
+  if(inp) inp.value = e;
+  buildTaskEmojiPicker();
 }
 function onTaskIconInput(val){
-  // 絵文字（Unicode拡張文字）を抽出
   const chars = [...val];
-  const emoji = chars.find(c => c.codePointAt(0) > 127);
+  const emoji = chars.find(c => c.codePointAt(0) > 127) || (val.trim().length===1?val.trim():'');
   if(emoji){
     selTaskIcon = emoji;
-    const btn = document.getElementById('taskIconBtn');
-    if(btn) btn.textContent = emoji;
-    const inp = document.getElementById('taskIconInput');
-    if(inp){ inp.value=''; inp.blur(); }
+    const preview = document.getElementById('taskIconPreview');
+    if(preview) preview.textContent = emoji;
+    buildTaskEmojiPicker();
   }
 }
 function clearTaskIcon(){
   selTaskIcon = '';
-  const btn = document.getElementById('taskIconBtn');
-  if(btn) btn.textContent = '➕';
+  const preview = document.getElementById('taskIconPreview');
+  if(preview) preview.textContent = '➕';
+  const inp = document.getElementById('taskIconInput');
+  if(inp) inp.value = '';
+  buildTaskEmojiPicker();
 }
+function toggleTaskEmojiPicker(){}
 
 function mkAvatar(name, color, size) {
   if (!name) return `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*0.55}px;flex-shrink:0;background:${color}18;color:${color}">?</div>`;
@@ -1486,10 +1491,11 @@ function openTaskModal(id, parentId, e) {
     setProgUI(t.progress||0);
     showParentInfo(t.parentId);
     selTaskIcon = t.icon||'';
-    const iconBtn = document.getElementById('taskIconBtn');
-    if(iconBtn) iconBtn.textContent = selTaskIcon||'➕';
+    const iconPreview = document.getElementById('taskIconPreview');
+    if(iconPreview) iconPreview.textContent = selTaskIcon||'➕';
     const iconInp = document.getElementById('taskIconInput');
-    if(iconInp) iconInp.value='';
+    if(iconInp) iconInp.value = selTaskIcon||'';
+    buildTaskEmojiPicker();
     // 既存画像をIndexedDBから読み込む
     idbGetImages(t.id).then(imgs => {
       window._editingImages = imgs || [];
@@ -1508,10 +1514,11 @@ function openTaskModal(id, parentId, e) {
     setProgUI(0);
     showParentInfo(parentId);
     selTaskIcon = '';
-    const iconBtn = document.getElementById('taskIconBtn');
-    if(iconBtn) iconBtn.textContent = '➕';
+    const iconPreview = document.getElementById('taskIconPreview');
+    if(iconPreview) iconPreview.textContent = '➕';
     const iconInp = document.getElementById('taskIconInput');
     if(iconInp) iconInp.value='';
+    buildTaskEmojiPicker();
   }
 
   document.getElementById('taskModal').classList.add('open');
