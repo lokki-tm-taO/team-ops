@@ -187,7 +187,7 @@ main{overflow:hidden;display:flex;flex-direction:column;}
 .tcard{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:10px;margin-bottom:6px;position:relative;overflow:hidden;transition:all .15s;user-select:none;}
 .tcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
 .tcard.high::before{background:var(--danger);}
-.tcard.medium::before{background:var(--accent2);}
+.tcard.medium::before{background:#f59e0b;}
 .tcard.low::before{background:var(--accent3);}
 .tcard:hover{border-color:var(--muted);box-shadow:0 4px 14px rgba(0,0,0,0.3);}
 .tcard.dragging{opacity:0.35;transform:scale(0.97);}
@@ -215,7 +215,7 @@ main{overflow:hidden;display:flex;flex-direction:column;}
 .soon{color:var(--accent2)!important;}
 .pbadge{padding:1px 5px;border-radius:3px;font-size:7px;letter-spacing:1px;text-transform:uppercase;font-weight:700;}
 .pbadge.high{background:rgba(255,71,87,0.15);color:var(--danger);}
-.pbadge.medium{background:rgba(255,107,53,0.15);color:var(--accent2);}
+.pbadge.medium{background:rgba(245,158,11,0.15);color:#f59e0b;}
 .pbadge.low{background:rgba(91,143,255,0.15);color:var(--accent3);}
 
 /* Sub-task add button */
@@ -1273,7 +1273,7 @@ function buildCard(t, level) {
     <span class="${dl}">${t.deadline?'📅 '+fmtD(t.deadline):'—'}</span>
     <div style="display:flex;gap:4px;align-items:center">
       ${t.member?mkAvatar(t.member,mc,20):''}
-      <span class="pbadge ${t.priority}">${{high:'高',medium:'中',low:'低'}[t.priority]}</span>
+      <span class="pbadge ${t.priority}">${{high:'🔴 高',medium:'🟡 中',low:'🔵 低'}[t.priority]}</span>
     </div>
   </div>`;
 
