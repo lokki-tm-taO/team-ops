@@ -489,6 +489,9 @@ select option{background:var(--surface2);}
   <div class="nl" style="display:none">フェーズ</div>
   <div id="phaseSideList" style="display:none"></div>
   <button class="btn btn-g" style="display:none;margin-top:7px;font-size:9px;width:100%" onclick="openPhaseModal()">+ フェーズ追加</button>
+  <div style="margin-top:24px;padding-top:12px;border-top:1px solid var(--border)">
+    <button class="btn btn-g" style="font-size:9px;width:100%;color:var(--muted)" onclick="cleanOrphanTasks()">🗑️ 孤立タスクを削除</button>
+  </div>
 </aside>
 
 <main>
@@ -1419,21 +1422,44 @@ function toggleCollapse(id, e) {
 }
 
 // ══ BOARD ══
+function cleanOrphanTasks() {
+  const orphanList = tasks.filter(t => t.parentId && !tasks.find(p => p.id === t.parentId));
+  if (orphanList.length === 0) {
+    showToast('孤立タスクはありません ✓');
+    return;
+  }
+  if (!confirm(`親タスクが存在しない孤立タスクが ${orphanList.length} 件あります。\n\n${orphanList.map(t=>t.name).join('\n')}\n\n削除しますか？`)) return;
+  orphanList.forEach(t => deleteTask_sync(t.id));
+  showToast(`${orphanList.length}件の孤立タスクを削除しました`);
+}
+
 function renderBoard() {
   const statuses = ['todo','inprogress','done'];
   const counts = {todo:0,inprogress:0,done:0};
 
+  // 孤立タスク（親が存在しない子タスク）を検出して親なし扱いで表示
+  const orphans = tasks.filter(t => t.parentId && !tasks.find(p => p.id === t.parentId));
+
   statuses.forEach(st => {
     const dz = document.getElementById(st+'DZ');
     dz.innerHTML = '';
-    // Top-level tasks for this status
     const topTasks = tasks.filter(t => !t.parentId && t.status === st).sort((a,b)=>(a._order||0)-(b._order||0));
-    if (!topTasks.length) {
+    // 孤立タスクも同じステータスなら表示（オレンジ警告バッジ付き）
+    const orphanTasks = orphans.filter(t => t.status === st);
+    if (!topTasks.length && !orphanTasks.length) {
       dz.innerHTML = '<div class="empty-st">タスクなし<br><span style="font-size:9px">ここにドロップ</span></div>';
     }
     topTasks.forEach(t => dz.appendChild(buildCard(t, 1)));
-    // Count all (including children effectively in this status)
-    counts[st] = tasks.filter(t=>!t.parentId&&t.status===st).length;
+    orphanTasks.forEach(t => {
+      const card = buildCard(t, 1);
+      // 孤立タスクに警告バッジを追加
+      const badge = document.createElement('div');
+      badge.style.cssText = 'font-size:9px;color:#f59e0b;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:4px;padding:2px 6px;margin-bottom:4px;';
+      badge.textContent = '⚠️ 孤立タスク（親が見つかりません）';
+      card.insertBefore(badge, card.firstChild);
+      dz.appendChild(card);
+    });
+    counts[st] = topTasks.length + orphanTasks.length;
   });
 
   document.getElementById('todoCount').textContent = counts.todo;
@@ -1444,13 +1470,9 @@ function renderBoard() {
   const allLeaf = tasks.filter(t=>getChildren(t.id).length===0);
   document.getElementById('totalTasks').textContent = tasks.length;
   // デバッグ: タスク一覧をコンソールに出力
-  console.log('[TASKS] 全タスク:', tasks.length, '件');
   const roots = tasks.filter(t=>!t.parentId);
-  const children = tasks.filter(t=>t.parentId);
-  console.log('[TASKS] 親タスク:', roots.length, '件', roots.map(t=>t.name));
-  console.log('[TASKS] 子タスク:', children.length, '件', children.map(t=>t.name+'(親:'+t.parentId+')'));
-  const orphans = children.filter(t=>!tasks.find(p=>p.id===t.parentId));
-  if(orphans.length) console.warn('[TASKS] 孤立タスク(親が存在しない):', orphans.map(t=>t.name));
+  const debugOrphans = tasks.filter(t=>t.parentId&&!tasks.find(p=>p.id===t.parentId));
+  if(debugOrphans.length) console.warn('[TASKS] 孤立タスク:', orphans.map(t=>t.name+'(parentId:'+t.parentId+')'));
   document.getElementById('doneTasks').textContent = tasks.filter(t=>t.status==='done').length;
   const now=new Date();now.setHours(0,0,0,0);
   document.getElementById('overdueTasks').textContent = tasks.filter(t=>t.deadline&&new Date(t.deadline)<now&&t.status!=='done').length;
@@ -1478,20 +1500,19 @@ function reorderTask(fromId, toId, toStatus, insertBefore) {
   const to   = tasks.find(t=>t.id===toId);
   if (!from||!to) return;
 
-  if (from.parentId===to.parentId) {
-    const fi = tasks.indexOf(from);
-    const ti = tasks.indexOf(to);
-    if (fi === -1 || ti === -1) return;
-    tasks.splice(fi, 1);
-    // splice後のtoの位置を再取得
-    const newTi = tasks.indexOf(to);
-    if (newTi === -1) { tasks.splice(fi, 0, from); return; }
-    // insertBefore=true → toの前に挿入、false → toの後に挿入
-    tasks.splice(insertBefore ? newTi : newTi + 1, 0, from);
-    from.status = toStatus;
-  } else {
-    from.status = toStatus;
+  // 同じ親（レベル）の中でのみ並び替えを許可
+  if (from.parentId !== to.parentId) {
+    showToast('同じ階層のタスクのみ並び替えできます');
+    return;
   }
+
+  const fi = tasks.indexOf(from);
+  if (fi === -1) return;
+  tasks.splice(fi, 1);
+  const newTi = tasks.indexOf(to);
+  if (newTi === -1) { tasks.splice(fi, 0, from); return; }
+  tasks.splice(insertBefore ? newTi : newTi + 1, 0, from);
+  from.status = toStatus;
   saveTask_sync(from); renderBoard(); showToast('並び替えました');
 }
 
