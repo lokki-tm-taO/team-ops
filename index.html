@@ -954,7 +954,7 @@ window._fbApply = function(col, data) {
     // 画像データはメモリ上のものを引き継ぐ
     const imgMap = {};
     tasks.forEach(t => { if(t.images && t.images.length) imgMap[t.id] = t.images; });
-    tasks = data.map(t => ({ ...t, images: imgMap[t.id] || t.images || [] }));
+    tasks = data.map(t => ({ ...t, parentId: t.parentId||'', images: imgMap[t.id] || t.images || [] }));
     loadAllImagesFromIDB().then(()=>renderAll());
     // モーダルが開いていたら編集中タスクの情報は触らない（入力中を保護）
     const modal = document.getElementById('taskModal');
