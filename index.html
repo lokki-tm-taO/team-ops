@@ -1782,7 +1782,7 @@ function gToggle(id, e) {
 function renderGantt(){
   const today = dateOnly(new Date());
   const pxPD = schedMode==='day'?DAY_PX:WEEK_PX/7;
-  const gTasks = tasks.filter(t=>!t.parentId&&(t.start||t.deadline||getChildren(t.id).some(c=>c.start||c.deadline)));
+  const gTasks = tasks.filter(t=>!t.parentId);
 
   let minD=addDays(today,-30), maxD=addDays(today,90);
   function scanDates(list){ list.forEach(t=>{ if(t.start){const d=dateOnly(t.start);if(d<minD)minD=d;} if(t.deadline){const d=dateOnly(t.deadline);if(d>maxD)maxD=d;} scanDates(getChildren(t.id)); }); }
