@@ -1785,8 +1785,8 @@ function renderGantt(){
   const gTasks = tasks.filter(t=>!t.parentId||t.parentId===''||t.parentId===null||t.parentId===undefined);
 
   let minD=addDays(today,-30), maxD=addDays(today,90);
-  function scanDates(list){ list.forEach(t=>{ if(t.start){const d=dateOnly(t.start);if(d<minD)minD=d;} if(t.deadline){const d=dateOnly(t.deadline);if(d>maxD)maxD=d;} scanDates(getChildren(t.id)); }); }
-  scanDates(tasks);
+  // 全タスクの日付を一括スキャン（再帰なし）
+  tasks.forEach(t=>{ if(t.start){const d=dateOnly(t.start);if(d<minD)minD=d;} if(t.deadline){const d=dateOnly(t.deadline);if(d>maxD)maxD=d;} });
   minD=addDays(minD,-7); maxD=addDays(maxD,14);
   const totalDays=diffDays(minD,maxD)+1;
   const totalW=Math.ceil(totalDays*pxPD);
