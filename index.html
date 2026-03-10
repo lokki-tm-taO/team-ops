@@ -1443,6 +1443,14 @@ function renderBoard() {
   // Header stats
   const allLeaf = tasks.filter(t=>getChildren(t.id).length===0);
   document.getElementById('totalTasks').textContent = tasks.length;
+  // デバッグ: タスク一覧をコンソールに出力
+  console.log('[TASKS] 全タスク:', tasks.length, '件');
+  const roots = tasks.filter(t=>!t.parentId);
+  const children = tasks.filter(t=>t.parentId);
+  console.log('[TASKS] 親タスク:', roots.length, '件', roots.map(t=>t.name));
+  console.log('[TASKS] 子タスク:', children.length, '件', children.map(t=>t.name+'(親:'+t.parentId+')'));
+  const orphans = children.filter(t=>!tasks.find(p=>p.id===t.parentId));
+  if(orphans.length) console.warn('[TASKS] 孤立タスク(親が存在しない):', orphans.map(t=>t.name));
   document.getElementById('doneTasks').textContent = tasks.filter(t=>t.status==='done').length;
   const now=new Date();now.setHours(0,0,0,0);
   document.getElementById('overdueTasks').textContent = tasks.filter(t=>t.deadline&&new Date(t.deadline)<now&&t.status!=='done').length;
