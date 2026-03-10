@@ -286,8 +286,8 @@ main{overflow:hidden;display:flex;flex-direction:column;}
 .grow{border-bottom:1px solid rgba(42,45,58,0.3);position:relative;display:flex;align-items:center;}
 .grow:hover{background:rgba(255,255,255,0.01);}
 .grow.lv1r{height:48px;}
-.grow.lv2r{height:40px;background:rgba(0,0,0,0.06);}
-.grow.lv3r{height:34px;background:rgba(0,0,0,0.1);}
+.grow.lv2r{height:38px;background:rgba(0,0,0,0.06);}
+.grow.lv3r{height:32px;background:rgba(0,0,0,0.1);}
 .glrow{border-bottom:1px solid rgba(42,45,58,0.3);display:flex;align-items:center;gap:5px;cursor:pointer;transition:.1s;}
 .glrow:hover{background:rgba(255,255,255,0.025);}
 .glrow.lv1r{height:48px;padding:0 9px;}
@@ -489,9 +489,7 @@ select option{background:var(--surface2);}
   <div class="nl" style="display:none">フェーズ</div>
   <div id="phaseSideList" style="display:none"></div>
   <button class="btn btn-g" style="display:none;margin-top:7px;font-size:9px;width:100%" onclick="openPhaseModal()">+ フェーズ追加</button>
-  <div style="margin-top:24px;padding-top:12px;border-top:1px solid var(--border)">
-    <button class="btn btn-g" style="font-size:9px;width:100%;color:var(--muted)" onclick="cleanOrphanTasks()">🗑️ 孤立タスクを削除</button>
-  </div>
+
 </aside>
 
 <main>
@@ -1781,7 +1779,7 @@ function renderGanttRows(taskList, pxPD, minD, maxD, totalW) {
     if(sD&&!eD) eD=new Date(sD);
 
     const barH = level===1?26:level===2?20:16;
-    const barTop = level===1?8:level===2?7:6;
+    const barTop = level===1?11:level===2?9:8;
 
     if (sD && eD) {
       const startOff = Math.max(0,diffDays(minD,sD));
