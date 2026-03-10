@@ -1008,7 +1008,7 @@ function getLevel(t) {
   if (!parent || !parent.parentId) return 2;
   return 3;
 }
-function getChildren(parentId) { return tasks.filter(t=>t.parentId===parentId); }
+function getChildren(parentId) { return tasks.filter(t=>t.parentId===parentId||(parentId===''&&(t.parentId===null||t.parentId===undefined))); }
 function getAllDescendants(id) {
   const ch = getChildren(id);
   return ch.reduce((acc,c)=>[...acc,c,...getAllDescendants(c.id)],[]);
@@ -1413,7 +1413,7 @@ function renderBoard() {
     const dz = document.getElementById(st+'DZ');
     dz.innerHTML = '';
     // Top-level tasks for this status
-    const topTasks = tasks.filter(t => !t.parentId && t.status === st);
+    const topTasks = tasks.filter(t => !t.parentId && t.status === st).sort((a,b)=>(a._order||0)-(b._order||0));
     if (!topTasks.length) {
       dz.innerHTML = '<div class="empty-st">タスクなし<br><span style="font-size:9px">ここにドロップ</span></div>';
     }
@@ -1782,7 +1782,7 @@ function gToggle(id, e) {
 function renderGantt(){
   const today = dateOnly(new Date());
   const pxPD = schedMode==='day'?DAY_PX:WEEK_PX/7;
-  const gTasks = tasks.filter(t=>!t.parentId);
+  const gTasks = tasks.filter(t=>!t.parentId||t.parentId===''||t.parentId===null||t.parentId===undefined);
 
   let minD=addDays(today,-30), maxD=addDays(today,90);
   function scanDates(list){ list.forEach(t=>{ if(t.start){const d=dateOnly(t.start);if(d<minD)minD=d;} if(t.deadline){const d=dateOnly(t.deadline);if(d>maxD)maxD=d;} scanDates(getChildren(t.id)); }); }
