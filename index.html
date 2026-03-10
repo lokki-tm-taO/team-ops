@@ -1364,11 +1364,25 @@ function buildCard(t, level) {
   card.innerHTML = inner;
 
   // Drag events
-  card.addEventListener('dragstart', e => { dragId=t.id; dragStatus=t.status; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
-  card.addEventListener('dragend',   () => { card.classList.remove('dragging'); dragId=null; });
-  card.addEventListener('dragover',  e => { e.preventDefault(); if(dragId&&dragId!==t.id) card.classList.add('drag-over-bot'); });
-  card.addEventListener('dragleave', () => card.classList.remove('drag-over-bot','drag-over-top'));
-  card.addEventListener('drop',      e => { e.preventDefault(); e.stopPropagation(); card.classList.remove('drag-over-bot','drag-over-top'); if(dragId&&dragId!==t.id) reorderTask(dragId,t.id,t.status); });
+  card.addEventListener('dragstart', e => { dragId=t.id; dragStatus=t.status; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.stopPropagation(); });
+  card.addEventListener('dragend',   () => { card.classList.remove('dragging'); dragId=null; document.querySelectorAll('.drag-over-top,.drag-over-bot').forEach(el=>el.classList.remove('drag-over-top','drag-over-bot')); });
+  card.addEventListener('dragover',  e => {
+    e.preventDefault(); e.stopPropagation();
+    if(!dragId||dragId===t.id) return;
+    const rect = card.getBoundingClientRect();
+    const isTop = e.clientY < rect.top + rect.height/2;
+    card.classList.toggle('drag-over-top', isTop);
+    card.classList.toggle('drag-over-bot', !isTop);
+  });
+  card.addEventListener('dragleave', e => { if(!card.contains(e.relatedTarget)) card.classList.remove('drag-over-bot','drag-over-top'); });
+  card.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    card.classList.remove('drag-over-bot','drag-over-top');
+    if(!dragId||dragId===t.id) return;
+    const rect = card.getBoundingClientRect();
+    const insertBefore = e.clientY < rect.top + rect.height/2;
+    reorderTask(dragId, t.id, t.status, insertBefore);
+  });
 
   // Children wrapper
   const childWrap = document.createElement('div');
@@ -1451,24 +1465,23 @@ function dzDrop(e, status){
   showToast('ステータスを変更しました');
 }
 
-function reorderTask(fromId, toId, toStatus) {
+function reorderTask(fromId, toId, toStatus, insertBefore) {
   const from = tasks.find(t=>t.id===fromId);
   const to   = tasks.find(t=>t.id===toId);
   if (!from||!to) return;
 
   if (from.parentId===to.parentId) {
-    // 同じ親の中での並び替え：インデックスを事前に取得してからsplice
     const fi = tasks.indexOf(from);
     const ti = tasks.indexOf(to);
     if (fi === -1 || ti === -1) return;
     tasks.splice(fi, 1);
-    // spliceでfromが消えた後のtoのインデックスを再計算
+    // splice後のtoの位置を再取得
     const newTi = tasks.indexOf(to);
-    if (newTi === -1) { tasks.splice(fi, 0, from); return; } // 安全策
-    tasks.splice(newTi + 1, 0, from);
+    if (newTi === -1) { tasks.splice(fi, 0, from); return; }
+    // insertBefore=true → toの前に挿入、false → toの後に挿入
+    tasks.splice(insertBefore ? newTi : newTi + 1, 0, from);
     from.status = toStatus;
   } else {
-    // 別の親へ移動する場合はステータスのみ変更（parentIdは変えない）
     from.status = toStatus;
   }
   saveTask_sync(from); renderBoard(); showToast('並び替えました');
@@ -1558,7 +1571,7 @@ function showParentInfo(parentId) {
   badge.className = `lvbadge lv${lv+1}b`;
 }
 
-function setProgUI(v){ document.getElementById('taskProg').value=v; document.getElementById('progLabel').textContent=v; document.getElementById('progDisp').textContent=v+'%'; }
+function setProgUI(v){ const n=Math.min(100,Math.max(0,parseInt(v)||0)); document.getElementById('taskProg').value=n; document.getElementById('progLabel').textContent=n; document.getElementById('progDisp').textContent=n+'%'; }
 function closeTaskModal(){ document.getElementById('taskModal').classList.remove('open'); editTaskId=null; pendingParentId=null; }
 
 function saveTask(){
@@ -1850,7 +1863,18 @@ function setupGanttSync(){
 }
 
 // ══ PROGRESS SLIDER ══
-document.getElementById('taskProg').addEventListener('input',function(){ document.getElementById('progLabel').textContent=this.value; document.getElementById('progDisp').textContent=this.value+'%'; });
+document.getElementById('taskProg').addEventListener('input', function(){
+  const v = Math.min(100, Math.max(0, parseInt(this.value)||0));
+  this.value = v;
+  document.getElementById('progLabel').textContent = v;
+  document.getElementById('progDisp').textContent = v+'%';
+});
+document.getElementById('taskProg').addEventListener('change', function(){
+  const v = Math.min(100, Math.max(0, parseInt(this.value)||0));
+  this.value = v;
+  document.getElementById('progLabel').textContent = v;
+  document.getElementById('progDisp').textContent = v+'%';
+});
 document.getElementById('taskParent').addEventListener('change',function(){ showParentInfo(this.value); });
 
 // ══ MODAL OUTSIDE CLICK ══
